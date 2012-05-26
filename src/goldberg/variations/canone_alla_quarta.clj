@@ -9,22 +9,41 @@
 ;; piano to be downloaded and cached locally.   ;;
 (ns goldberg.variations.canone-alla-quarta
   (:use
-    [overtone.live :only [at now ctl stop]]
+    [overtone.live :exclude [scale bpm run pitch shift]]
     [overtone.inst.sampled-piano :only [sampled-piano] :rename {sampled-piano piano#}]))
 
-(defn play# [notes]
+(defn play-on# [instrument# notes]
   (let [play-at# (fn [[ms midi]]
-                   (at ms (piano# midi))
+                   (at ms (instrument# midi))
                    (at (+ ms 150) (ctl piano# :gate 0)))]
     (->> notes (map play-at#) dorun)))
 
-(defn even-melody# [pitches]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Synth                                        ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(definst saw# [freq 440 depth 5]
+  (let [envelope (env-gen (perc 0.1 0.4) (lf-pulse:kr 2) :action FREE)]
+    (*
+      envelope
+      (saw (+ freq (* depth (lf-saw:kr (lf-pulse:kr 0.1 0.2))))))))
+
+(defn synth# [midi-note] (-> midi-note midi->hz saw#))
+;;(def play# (partial play-on# synth#))
+;;(def play# (partial play-on# piano#))
+(defn play# [inst notes]
+  (partial play-on# inst))
+
+(defn even-melody# [pitches inst]
   (let [times (reductions + (cons (now) (repeat 400)))
         notes (map vector times pitches)]
-    (play# notes)))
+    (play-on# inst notes)))
+
+;(synth# 55)
+;(even-melody# (range 60 73) synth#)
 
 ;(piano# 55)
-;(even-melody# (range 60 67))
+;(even-melody# (range 60 67) piano#)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -138,14 +157,15 @@
 (defn canone-alla-quarta [canon-type]
   (canon (comp (interval -3) canon-type (simple 3))))
 
-(defn canon# [start tempo scale canonm]
+(defn canon# [start tempo scale inst canonm]
   (let [in-time (comp (shift [start 0]) (skew timing tempo))
         in-key (skew pitch scale)
-        play-now# (comp play# in-key in-time)]
+        play-now# (comp play-on# inst in-key in-time)]
 
     (-> bass play-now#)
     (-> melody canonm play-now#)))
 
-(canon# (now) (bpm 90) (comp Eb minor) (canone-alla-quarta crab))
-(canon# (now) (bpm 90) (comp G minor) (canone-alla-quarta mirror))
-(canon# (now) (bpm 90) (comp G major) (canone-alla-quarta table))
+;; (canon# (now) (bpm 90) (comp Db minor) piano# (canone-alla-quarta crab))
+;; (canon# (now) (bpm 90) (comp Db major) (canone-alla-quarta mirror))
+;; (canon# (now) (bpm 90) (comp G major) (canone-alla-quarta table))
+;; (stop)
